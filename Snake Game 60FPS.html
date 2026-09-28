@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Snake 60FPS - Đa Nền Tảng</title>
+<style>
+  * {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+  body {
+    margin: 0; 
+    padding: 12px;
+    min-height: 100vh; 
+    display: flex; 
+    align-items: center; 
+    justify-content: center;
+    background: #0b1020; 
+    color: #fff; 
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    overflow-x: hidden;
+    touch-action: manipulation;
+  }
+  .wrap {
+    width: min(96vw, 500px); 
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  h1 {
+    margin: 0;
+    font-size: clamp(22px, 5vw, 32px);
+    font-weight: 800;
+    color: #39d98a;
+    text-shadow: 0 0 12px rgba(57, 217, 138, 0.3);
+  }
+  .hud {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #151c33;
+    border: 1px solid #2b3658;
+    border-radius: 14px;
+    padding: 10px 18px;
+    font-weight: 700;
+    font-size: 15px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  }
+  .hud-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .hud-val {
+    color: #39d98a;
+    font-size: 18px;
+  }
+  .card {
+    background: #151c33;
+    border: 1px solid #2b3658;
+    border-radius: 18px;
+    padding: 12px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+    touch-action: none; /* Ngăn cuộn trang khi vuốt trên canvas */
+    position: relative;
+  }
+  canvas {
+    width: 100%; 
+    aspect-ratio: 1/1; 
+    display: block; 
+    background: #080d18;
+    border-radius: 12px;
+    image-rendering: pixelated;
+  }
+  .controls-info {
+    color: #8f9bba;
+    font-size: 13px;
+    line-height: 1.4;
+    background: rgba(21, 28, 51, 0.6);
+    padding: 8px 12px;
+    border-radius: 10px;
+  }
+  .restart-btn {
+    border: 0;
+    border-radius: 12px;
+    padding: 12px 24px;
+    background: linear-gradient(135deg, #39d98a, #28c978);
+    color: #06130c;
+    font-weight: 800;
+    font-size: 16px;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(57, 217, 138, 0.3);
+    transition: transform 0.1s, filter 0.2s;
+  }
+  .restart-btn:active {
+    transform: scale(0.96);
+  }
+  .restart-btn:hover {
+    filter: brightness(1.1);
+  }
+
+  /* Phím ảo D-Pad cho điện thoại */
+  .dpad-container {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    width: 180px;
+    height: 180px;
+    margin: 4px auto 0;
+    gap: 6px;
+  }
+  .dpad-btn {
+    background: #1e2942;
+    border: 1px solid #334266;
+    border-radius: 12px;
+    color: #39d98a;
+    font-size: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    transition: background 0.1s, transform 0.1s;
+    touch-action: manipulation;
+  }
+  .dpad-btn:active {
+    background: #39d98a;
+    color: #0b1020;
+    transform: scale(0.92);
+  }
+  .dpad-up    { grid-column: 2; grid-row: 1; }
+  .dpad-left  { grid-column: 1; grid-row: 2; }
+  .dpad-right { grid-column: 3; grid-row: 2; }
+  .dpad-down  { grid-column: 2; grid-row: 3; }
+
+  @media (min-width: 768px) {
+    .dpad-container {
+      display: none; /* Ẩn D-pad trên máy tính màn hình lớn */
+    }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🐍 Snake 60FPS</h1>
+
+  <div class="hud">
+    <div class="hud-item">Điểm: <span class="hud-val" id="score">0</span></div>
+    <div class="hud-item">FPS: <span class="hud-val" id="fps">60</span></div>
+  </div>
+
+  <div class="card" id="canvas-card">
+    <canvas id="game" width="600" height="600"></canvas>
+  </div>
+
+  <div class="controls-info">
+    🎮 <b>PC:</b> Phím mũi tên / WASD / HJKL<br>
+    📱 <b>Mobile:</b> Vuốt màn hình hoặc dùng D-Pad bên dưới
+  </div>
+
+  <!-- Nút D-Pad cho di động -->
+  <div class="dpad-container">
+    <button class="dpad-btn dpad-up" id="btn-up" aria-label="Lên">▲</button>
+    <button class="dpad-btn dpad-left" id="btn-left" aria-label="Trái">◄</button>
+    <button class="dpad-btn dpad-right" id="btn-right" aria-label="Phải">►</button>
+    <button class="dpad-btn dpad-down" id="btn-down" aria-label="Xuống">▼</button>
+  </div>
+
+  <button class="restart-btn" id="restart">Chơi lại</button>
+</div>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+const scoreEl = document.getElementById("score");
+const fpsEl = document.getElementById("fps");
+const restartBtn = document.getElementById("restart");
+const canvasCard = document.getElementById("canvas-card");
+
+const SIZE = 30;
+const CELL = canvas.width / SIZE;
+let snake, fruit, dir, nextDir, score, gameOver;
+let accumulator = 0;
+let lastTime = performance.now();
+let fpsTime = lastTime, frames = 0;
+
+function reset(){
+  snake = [
+    {x:15, y:15}, {x:14, y:15}, {x:13, y:15}, {x:12, y:15}
+  ];
+  dir = {x:1, y:0};
+  nextDir = {x:1, y:0};
+  score = 0;
+  gameOver = false;
+  placeFruit();
+  scoreEl.textContent = score;
+}
+
+function placeFruit(){
+  do {
+    fruit = {
+      x: Math.floor(Math.random() * SIZE),
+      y: Math.floor(Math.random() * SIZE)
+    };
+  } while(snake.some(p => p.x === fruit.x && p.y === fruit.y));
+}
+
+function setDirection(x, y){
+  // Ngăn chuyển hướng ngược 180 độ
+  if(x === -dir.x && y === -dir.y) return;
+  nextDir = {x, y};
+}
+
+window.addEventListener("keydown", e => {
+  const k = e.key.toLowerCase();
+  
+  // Ngăn cuộn trang khi bấm các phím điều khiển
+  if(["arrowup", "arrowdown", "arrowleft", "arrowright", " ", "w", "a", "s", "d", "h", "j", "k", "l"].includes(k)) {
+    e.preventDefault();
+  }
+
+  // Hỗ trợ Mũi tên, WASD, Vim (HJKL)
+  if (k === "arrowup" || k === "w" || k === "k") setDirection(0, -1);
+  if (k === "arrowdown" || k === "s" || k === "j") setDirection(0, 1);
+  if (k === "arrowleft" || k === "a" || k === "h") setDirection(-1, 0);
+  if (k === "arrowright" || k === "d" || k === "l") setDirection(1, 0);
+
+  // Restart game với Enter hoặc Spacebar
+  if (gameOver && (k === "enter" || k === " ")) {
+    reset();
+  }
+});
+
+document.getElementById("btn-up").addEventListener("click", () => setDirection(0, -1));
+document.getElementById("btn-down").addEventListener("click", () => setDirection(0, 1));
+document.getElementById("btn-left").addEventListener("click", () => setDirection(-1, 0));
+document.getElementById("btn-right").addEventListener("click", () => setDirection(1, 0));
+
+let touchStartX = 0;
+let touchStartY = 0;
+
+canvasCard.addEventListener("touchstart", e => {
+  touchStartX = e.touches[0].clientX;
+  touchStartY = e.touches[0].clientY;
+}, { passive: false });
+
+canvasCard.addEventListener("touchmove", e => {
+  // Ngăn cuộn trang web khi vuốt trên vùng game
+  e.preventDefault();
+}, { passive: false });
+
+canvasCard.addEventListener("touchend", e => {
+  if (gameOver) return;
+
+  const touchEndX = e.changedTouches[0].clientX;
+  const touchEndY = e.changedTouches[0].clientY;
+
+  const dx = touchEndX - touchStartX;
+  const dy = touchEndY - touchStartY;
+
+  // Ngưỡng khoảng cách tối thiểu để nhận diện swipe (tránh chạm nhầm)
+  const minSwipeDistance = 20;
+
+  if (Math.abs(dx) > Math.abs(dy)) {
+    if (Math.abs(dx) > minSwipeDistance) {
+      if (dx > 0) setDirection(1, 0);  // Vuốt Phải
+      else setDirection(-1, 0);       // Vuốt Trái
+    }
+  } else {
+    if (Math.abs(dy) > minSwipeDistance) {
+      if (dy > 0) setDirection(0, 1);  // Vuốt Xuống
+      else setDirection(0, -1);       // Vuốt Lên
+    }
+  }
+});
+
+restartBtn.onclick = reset;
+
+function update(){
+  if(gameOver) return;
+  dir = nextDir;
+  const head = {
+    x: snake[0].x + dir.x,
+    y: snake[0].y + dir.y
+  };
+
+  // Kiểm tra va chạm tường
+  if(head.x < 0 || head.x >= SIZE || head.y < 0 || head.y >= SIZE){
+    gameOver = true; 
+    return;
+  }
+
+  const eating = head.x === fruit.x && head.y === fruit.y;
+  const bodyToCheck = eating ? snake : snake.slice(0, -1);
+
+  // Kiểm tra va chạm thân
+  if(bodyToCheck.some(p => p.x === head.x && p.y === head.y)){
+    gameOver = true; 
+    return;
+  }
+
+  snake.unshift(head);
+
+  if(eating){
+    score += 10;
+    scoreEl.textContent = score;
+    placeFruit();
+  } else {
+    snake.pop();
+  }
+}
+
+function draw(){
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Vẽ lưới nền
+  ctx.strokeStyle = "#101a2d";
+  ctx.lineWidth = 1;
+  for(let i = 0; i <= SIZE; i++){
+    const p = i * CELL;
+    ctx.beginPath(); ctx.moveTo(p, 0); ctx.lineTo(p, canvas.height); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, p); ctx.lineTo(canvas.width, p); ctx.stroke();
+  }
+
+  // Vẽ quả táo
+  ctx.font = `${CELL * 0.75}px Arial`;
+  ctx.textAlign = "center"; 
+  ctx.textBaseline = "middle";
+  ctx.fillText("🍎", (fruit.x + 0.5) * CELL, (fruit.y + 0.5) * CELL);
+
+  // Vẽ rắn
+  snake.forEach((p, i) => {
+    const pad = 2;
+    ctx.fillStyle = i === 0 ? "#55f29a" : "#28c978";
+    roundRect(ctx, p.x * CELL + pad, p.y * CELL + pad, CELL - pad * 2, CELL - pad * 2, 6);
+    ctx.fill();
+
+    // Mắt rắn
+    if(i === 0){
+      ctx.fillStyle = "#082016";
+      const ex = p.x * CELL + CELL * (dir.x === 0 ? 0.35 : dir.x > 0 ? 0.65 : 0.35);
+      const ey = p.y * CELL + CELL * (dir.y === 0 ? 0.35 : dir.y > 0 ? 0.65 : 0.35);
+      ctx.beginPath(); 
+      ctx.arc(ex, ey, CELL * 0.08, 0, Math.PI * 2); 
+      ctx.fill();
+    }
+  });
+
+  // Màn hình Game Over
+  if(gameOver){
+    ctx.fillStyle = "rgba(0, 9, 20, 0.82)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    ctx.fillStyle = "#ff4d4d";
+    ctx.font = "bold 38px Arial";
+    ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 18);
+    
+    ctx.font = "16px Arial";
+    ctx.fillStyle = "#b9c4df";
+    ctx.fillText("Nhấn Chơi lại, Space hoặc Enter", canvas.width / 2, canvas.height / 2 + 25);
+  }
+}
+
+function roundRect(c, x, y, w, h, r){
+  c.beginPath();
+  c.moveTo(x + r, y);
+  c.arcTo(x + w, y, x + w, y + h, r);
+  c.arcTo(x + w, y + h, x, y + h, r);
+  c.arcTo(x, y + h, x, y, r);
+  c.arcTo(x, y, x + w, y, r);
+  c.closePath();
+}
+
+function loop(now){
+  const delta = Math.min(now - lastTime, 100);
+  lastTime = now;
+  accumulator += delta;
+
+  // Cập nhật bước di chuyển (12 bước/giây), vẽ mượt ở 60 FPS
+  const step = 1000 / 12;
+  while(accumulator >= step){
+    update();
+    accumulator -= step;
+  }
+
+  draw();
+
+  frames++;
+  if(now - fpsTime >= 500){
+    fpsEl.textContent = Math.round(frames * 1000 / (now - fpsTime));
+    frames = 0; 
+    fpsTime = now;
+  }
+  requestAnimationFrame(loop);
+}
+
+// Chạy trò chơi
+reset();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
